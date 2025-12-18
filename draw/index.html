@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<body>
+<canvas id="canvas"></canvas>
+
+<script type="module">
+import createModule from "./render.js";
+
+const Module = await createModule();
+await Module.ready;
+
+// Get functions
+const getBuffer = Module.cwrap("get_buffer", "number", []);
+const getWidth  = Module.cwrap("get_width",  "number", []);
+const getHeight = Module.cwrap("get_height", "number", []);
+const render    = Module.cwrap("render", null, []);
+
+const width  = getWidth();
+const height = getHeight();
+
+const canvas = document.getElementById("canvas");
+canvas.width  = width;
+canvas.height = height;
+const ctx = canvas.getContext("2d");
+
+// Create an ImageData object once
+const bufferPtr = getBuffer();
+const pixels = new Uint8ClampedArray(
+  Module.HEAPU8.buffer,
+  bufferPtr,
+  width * height * 4
+);
+const imageData = new ImageData(pixels, width, height);
+
+// Animation loop
+function animate() {
+  render(); // Update pixels in C++
+  ctx.putImageData(imageData, 0, 0);
+  requestAnimationFrame(animate);
+}
+
+animate();
+</script>
+</body>
+</html>

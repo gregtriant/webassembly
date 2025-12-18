@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script src="add.js"></script>
+<script>
+    Module.onRuntimeInitialized = () => {
+        const add = Module.cwrap("add", "number", ["number", "number"]);
+        const greet = Module.cwrap("greet", "string", []);
+        
+        console.log(add(4, 4));
+        console.log(greet());
+    };
+</script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<body>
+<canvas id="canvas"></canvas>
+
+<script type="module">
+import createModule from "./mandelbrot.js";
+
+const Module = await createModule();
+await Module.ready;
+
+// Functions
+const getBuffer = Module.cwrap("get_buffer", "number", []);
+const getWidth  = Module.cwrap("get_width",  "number", []);
+const getHeight = Module.cwrap("get_height", "number", []);
+const render    = Module.cwrap("render", null, []);
+const setParams = Module.cwrap("set_parameters", null, ["number","number","number"]);
+
+const width  = getWidth();
+const height = getHeight();
+const canvas = document.getElementById("canvas");
+canvas.width  = width;
+canvas.height = height;
+const ctx = canvas.getContext("2d");
+
+// Pixel buffer
+const bufferPtr = getBuffer();
+const pixels = new Uint8ClampedArray(Module.HEAPU8.buffer, bufferPtr, width*height*4);
+const imageData = new ImageData(pixels, width, height);
+
+// Mandelbrot parameters
+let centerX = -0.743643887037151;
+let centerY = 0.13182590420533;
+let scale   = 0.003;
+
+// Mouse interaction
+let isDragging = false;
+let lastX = 0;
+let lastY = 0;
+
+canvas.addEventListener("mousedown", e => {
+  isDragging = true;
+  lastX = e.offsetX;
+  lastY = e.offsetY;
+});
+canvas.addEventListener("mouseup", e => isDragging = false);
+canvas.addEventListener("mousemove", e => {
+  if (!isDragging) return;
+  const dx = e.offsetX - lastX;
+  const dy = e.offsetY - lastY;
+  centerX -= dx * (scale / width);
+  centerY -= dy * (scale / height);
+  lastX = e.offsetX;
+  lastY = e.offsetY;
+});
+
+// Zoom with wheel
+canvas.addEventListener("wheel", e => {
+  e.preventDefault();
+  const zoomFactor = e.deltaY < 0 ? 0.9 : 1.1;
+  scale *= zoomFactor;
+});
+
+// Animation loop
+function animate() {
+  setParams(centerX, centerY, scale);
+  render();
+  ctx.putImageData(imageData, 0, 0);
+  requestAnimationFrame(animate);
+}
+
+animate();
+</script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+    <style>
+        #canvas {
+            border: 2px solid black;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            background-color: #fff;
+        }
+    </style>
+<body>
+
+    <div style="margin-bottom:10px;">
+        Line Width: <input id="widthSlider" type="range" min="1" max="20" value="1">
+    </div>
+    <div style="margin-top:10px;">
+        <canvas id="canvas"></canvas>
+    </div>
+
+
+    <script type="module">
+        import createModule from "./line.js";
+
+        const Module = await createModule();
+        await Module.ready;
+
+        const getBuffer = Module.cwrap("get_buffer","number",[]);
+        const getWidth  = Module.cwrap("get_width","number",[]);
+        const getHeight = Module.cwrap("get_height","number",[]);
+        const render   = Module.cwrap("render",null,[]);
+        const setPoints = Module.cwrap("set_points", null, ["number","number","number","number"]);
+        const setLineWidth = Module.cwrap("set_line_width", null, ["number"]);
+
+        const width  = getWidth();
+        const height = getHeight();
+        const canvas = document.getElementById("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+
+        const bufferPtr = getBuffer();
+        const pixels = new Uint8ClampedArray(Module.HEAPU8.buffer, bufferPtr, width*height*4);
+        const imageData = new ImageData(pixels, width, height);
+
+        let points = [
+        {x:100, y:100},
+        {x:700, y:500}
+        ];
+        let dragPoint = null;
+
+        // Mouse interaction
+        canvas.addEventListener("mousedown", e => {
+        const mx = e.offsetX;
+        const my = e.offsetY;
+        points.forEach((p,i) => { if (Math.hypot(mx-p.x,my-p.y)<10) dragPoint = i; });
+        });
+        canvas.addEventListener("mouseup", e => dragPoint = null);
+        canvas.addEventListener("mousemove", e => {
+        const mx = e.offsetX;
+        const my = e.offsetY;
+        let hovering = false;
+        points.forEach(p => { if (Math.hypot(mx-p.x,my-p.y)<10) hovering = true; });
+        canvas.style.cursor = hovering ? "pointer" : "default";
+        if (dragPoint !== null) { points[dragPoint].x = mx; points[dragPoint].y = my; }
+        });
+
+        // Slider
+        const slider = document.getElementById("widthSlider");
+        slider.addEventListener("input", e => {
+        const val = parseInt(e.target.value);
+        setLineWidth(val);
+        });
+
+        // Draw circles
+        function drawCircle(x, y, radius=5, color="red") {
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, 2*Math.PI);
+        ctx.fillStyle = color;
+        ctx.fill();
+        }
+
+        // Animation
+        function animate() {
+        setPoints(points[0].x, points[0].y, points[1].x, points[1].y);
+        render();
+        ctx.putImageData(imageData, 0, 0);
+        points.forEach(p => drawCircle(p.x, p.y));
+        requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
