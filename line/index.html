@@ -19,76 +19,123 @@
 
 
     <script type="module">
-        import createModule from "./line.js";
+import createModule from "./line.js";
 
-        const Module = await createModule();
-        await Module.ready;
+const Module = await createModule();
+await Module.ready;
 
-        const getBuffer = Module.cwrap("get_buffer","number",[]);
-        const getWidth  = Module.cwrap("get_width","number",[]);
-        const getHeight = Module.cwrap("get_height","number",[]);
-        const render   = Module.cwrap("render",null,[]);
-        const setPoints = Module.cwrap("set_points", null, ["number","number","number","number"]);
-        const setLineWidth = Module.cwrap("set_line_width", null, ["number"]);
+// WASM functions
+const getBuffer = Module.cwrap("get_buffer","number",[]);
+const getWidth  = Module.cwrap("get_width","number",[]);
+const getHeight = Module.cwrap("get_height","number",[]);
+const render   = Module.cwrap("render",null,[]);
+const addLine  = Module.cwrap("add_line","number",["number","number","number","number","number"]);
+const setPoints = Module.cwrap("set_line_points",null,["number","number","number","number"]);
+const setWidth = Module.cwrap("set_line_width",null,["number","number"]);
 
-        const width  = getWidth();
-        const height = getHeight();
-        const canvas = document.getElementById("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
+const width = getWidth();
+const height = getHeight();
+const canvas = document.getElementById("canvas");
+canvas.width = width;
+canvas.height = height;
+const ctx = canvas.getContext("2d");
 
-        const bufferPtr = getBuffer();
-        const pixels = new Uint8ClampedArray(Module.HEAPU8.buffer, bufferPtr, width*height*4);
-        const imageData = new ImageData(pixels, width, height);
+const bufferPtr = getBuffer();
+const pixels = new Uint8ClampedArray(Module.HEAPU8.buffer, bufferPtr, width*height*4);
+const imageData = new ImageData(pixels, width, height);
 
-        let points = [
-        {x:100, y:100},
-        {x:700, y:500}
-        ];
-        let dragPoint = null;
+// Data for multiple lines
+let lineIds = [];
+let lines = [];
+let selectedLine = 0; // currently selected line
+let dragPoint = null;
 
-        // Mouse interaction
-        canvas.addEventListener("mousedown", e => {
-        const mx = e.offsetX;
-        const my = e.offsetY;
-        points.forEach((p,i) => { if (Math.hypot(mx-p.x,my-p.y)<10) dragPoint = i; });
+// Add example lines
+lineIds.push(addLine(100,100,700,500,2));
+lines.push([{x:100,y:100},{x:700,y:500}]);
+
+lineIds.push(addLine(200,300,600,400,5));
+lines.push([{x:200,y:300},{x:600,y:400}]);
+
+// Slider element
+const slider = document.getElementById("widthSlider");
+slider.value = 2;
+slider.addEventListener("input", e => {
+    const val = parseInt(e.target.value);
+    const id = lineIds[selectedLine];
+    setWidth(id,val);
+});
+
+// Mouse interaction
+canvas.addEventListener("mousedown", e => {
+    const mx = e.offsetX;
+    const my = e.offsetY;
+    let clicked = false;
+
+    lines.forEach((pts, idx) => {
+        pts.forEach((p, pi) => {
+            if (Math.hypot(mx-p.x,my-p.y)<10) {
+                dragPoint = pi;
+                selectedLine = idx;  // select the line
+                slider.value = getLineWidth(idx); // update slider
+                clicked = true;
+            }
         });
-        canvas.addEventListener("mouseup", e => dragPoint = null);
-        canvas.addEventListener("mousemove", e => {
-        const mx = e.offsetX;
-        const my = e.offsetY;
-        let hovering = false;
-        points.forEach(p => { if (Math.hypot(mx-p.x,my-p.y)<10) hovering = true; });
-        canvas.style.cursor = hovering ? "pointer" : "default";
-        if (dragPoint !== null) { points[dragPoint].x = mx; points[dragPoint].y = my; }
-        });
+    });
+    if (!clicked) dragPoint = null;
+});
+canvas.addEventListener("mouseup", e => dragPoint=null);
 
-        // Slider
-        const slider = document.getElementById("widthSlider");
-        slider.addEventListener("input", e => {
-        const val = parseInt(e.target.value);
-        setLineWidth(val);
-        });
+canvas.addEventListener("mousemove", e => {
+    const mx = e.offsetX;
+    const my = e.offsetY;
 
-        // Draw circles
-        function drawCircle(x, y, radius=5, color="red") {
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, 2*Math.PI);
-        ctx.fillStyle = color;
-        ctx.fill();
-        }
+    // Hover cursor
+    let hovering = false;
+    lines.forEach(pts => {
+        pts.forEach(p => { if (Math.hypot(mx-p.x,my-p.y)<10) hovering = true; });
+    });
+    canvas.style.cursor = hovering ? "pointer" : "default";
 
-        // Animation
-        function animate() {
-        setPoints(points[0].x, points[0].y, points[1].x, points[1].y);
-        render();
-        ctx.putImageData(imageData, 0, 0);
-        points.forEach(p => drawCircle(p.x, p.y));
-        requestAnimationFrame(animate);
-        }
+    // Drag point of selected line
+    if (dragPoint !== null) {
+        lines[selectedLine][dragPoint].x = mx;
+        lines[selectedLine][dragPoint].y = my;
+        const id = lineIds[selectedLine];
+        const p0 = lines[selectedLine][0];
+        const p1 = lines[selectedLine][1];
+        setPoints(id,p0.x,p0.y,p1.x,p1.y);
+    }
+});
 
-        animate();
-    </script>
+// Helper to get current line width from WASM
+function getLineWidth(idx) {
+    // We'll just return the slider value for simplicity
+    return parseInt(slider.value);
+}
+
+// Draw circles
+function drawCircle(x,y,r=5,color="red") {
+    ctx.beginPath();
+    ctx.arc(x,y,r,0,2*Math.PI);
+    ctx.fillStyle=color;
+    ctx.fill();
+}
+
+// Animation
+function animate() {
+    render();
+    ctx.putImageData(imageData,0,0);
+
+    lines.forEach((pts, idx) => {
+        const color = idx === selectedLine ? "blue" : "red"; // highlight selected line
+        pts.forEach(p => drawCircle(p.x,p.y,5,color));
+    });
+
+    requestAnimationFrame(animate);
+}
+
+animate();
+</script>
 </body>
 </html>
