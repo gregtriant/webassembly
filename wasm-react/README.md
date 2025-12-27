@@ -1,5 +1,6 @@
 
 # Paint Canvas using WASM
+![alt text](public/images/image.png)
 
 # Run the paint app
 ```

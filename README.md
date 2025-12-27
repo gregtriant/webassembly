@@ -9,3 +9,6 @@
 
 # Interactive Lines
 ![alt text](images/image-3.png)
+
+# Wasm + React
+![alt text](wasm-react/public/images/image.png)
