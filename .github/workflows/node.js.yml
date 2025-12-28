@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Copying files to production server
-        uses: burnett01/rsync-deployments@5.2.2
+        uses: burnett01/rsync-deployments@7.0.1
         with:
           switches: -avzr --delete --filter=':- .gitignore' --exclude='/.git'
           path: /
@@ -28,7 +28,7 @@ jobs:
           remote_port: ${{ secrets.SSH_PORT }}
 
       - name: Executing remote ssh commands to start the staging server
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
