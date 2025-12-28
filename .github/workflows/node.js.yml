@@ -1,0 +1,44 @@
+
+name: Deployment
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  REMOTE_TARGET: /home/admin/webassembly
+  APP_NAME: wasm-react
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Copying files to production server
+        uses: burnett01/rsync-deployments@5.2.2
+        with:
+          switches: -avzr --delete --filter=':- .gitignore' --exclude='/.git'
+          path: /
+          remote_path: ${{ env.REMOTE_TARGET }}
+          remote_host: ${{ secrets.HOST }}
+          remote_user: ${{ secrets.USER }}
+          remote_key: ${{ secrets.KEY }}
+          remote_port: ${{ secrets.SSH_PORT }}
+
+      - name: Executing remote ssh commands to start the staging server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          port: ${{ secrets.SSH_PORT }}
+          key: ${{ secrets.KEY }}
+          script: |
+            cd ${{ env.REMOTE_TARGET }}/${{ env.APP_NAME }}
+            npm --version
+            node --version
+            rm -rf dist
+            npm install
+            npm run build
+            echo "Deployment completed successfully."
